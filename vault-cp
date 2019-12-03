@@ -1,0 +1,69 @@
+#!/bin/bash
+
+
+usage() {
+  cat <<"EOF"
+USAGE:
+  vault-cp                       : list the contexts
+  vault-cp  <SOURCE>  <DEST>     : copy vault key value from one path to other path
+  vault -h,--help                : show this message
+EOF
+}
+
+exit_err() {
+   echo >&2 "${1}"
+   exit 1
+}
+
+gen_source_keyfile(){
+  "${VAULT}" kv list "${source}" | awk 'NR>2' > ./source_list
+}
+
+read_source_keyvalue(){
+    while read line; do "${VAULT}" read -format=json "${source}"/"${line}" | "${JQ}" .data | "${VAULT}" write -f "${dest}"/"${line}" -; done < ./source_list
+    rm -rf ./source_list
+}
+
+
+main() {
+  if hash vault 2>/dev/null; then
+    VAULT=vault
+  elif hash vault.exe 2>/dev/null; then
+    VAULT=vault
+  else
+    echo >&2 "vault is not installed"
+    exit 1
+  fi
+
+  if hash jq 2> /dev/null; then
+    JQ=jq
+  else
+    echo >&2 "jq is not installed"
+    exit 1
+  fi
+
+
+  if [[ "$#" -eq 0 ]]; then
+    usage
+    exit 1
+  elif [[ "$#" -gt 2 ]]; then
+    echo "error: too many arguments" >&2
+    usage
+    exit 1
+  elif [[ "$#" -eq 1 ]]; then
+    if [[ "${1}" == '-h' || "${1}" == '--help' ]]; then
+      usage
+    fi
+  elif [[ "$#" -eq 2 ]]; then
+    source=$1
+    dest=$2
+    gen_source_keyfile
+    read_source_keyvalue
+  else
+    usage
+    exit 1
+  fi
+
+}
+
+main "$@"
